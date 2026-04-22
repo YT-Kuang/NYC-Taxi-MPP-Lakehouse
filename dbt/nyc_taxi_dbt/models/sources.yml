@@ -1,0 +1,28 @@
+version: 2
+
+sources:
+  - name: silver
+    database: iceberg
+    schema: nyc_lakehouse
+    tables:
+      - name: silver_trip_enriched
+        description: "Silver enriched NYC yellow taxi trip data cleaned by PySpark."
+        columns:
+          - name: pickup_date
+            description: "Pickup calendar date."
+            tests:
+              - not_null
+
+          - name: total_amount
+            description: "Total charged amount."
+            tests:
+              - not_null
+
+      - name: silver_dim_taxi_zone
+        description: "Silver taxi zone dimension cleaned by PySpark."
+        columns:
+          - name: location_id
+            description: "Taxi zone location identifier."
+            tests:
+              - not_null
+              - unique

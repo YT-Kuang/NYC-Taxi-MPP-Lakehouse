@@ -1,0 +1,49 @@
+version: 2
+
+models:
+  - name: stg_trip_enriched
+    description: "Staging model for cleaned and enriched taxi trips."
+    columns:
+      - name: pickup_ts
+        tests:
+          - not_null
+
+      - name: pickup_date
+        tests:
+          - not_null
+
+      - name: total_amount
+        tests:
+          - not_null
+
+      - name: trip_distance
+        tests:
+          - not_null
+
+      - name: pickup_borough
+        tests:
+          - not_null
+
+      - name: dropoff_borough
+        tests:
+          - not_null
+
+      - name: payment_type
+        tests:
+          - not_null
+
+  - name: stg_dim_zone
+    description: "Staging model for taxi zone dimension."
+    columns:
+      - name: location_id
+        tests:
+          - not_null
+          - unique
+
+      - name: borough
+        tests:
+          - not_null
+
+      - name: zone
+        tests:
+          - not_null
