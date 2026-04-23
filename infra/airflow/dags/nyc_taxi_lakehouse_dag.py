@@ -28,11 +28,18 @@ SPARK_PACKAGES = (
     "org.apache.hadoop:hadoop-aws:3.3.4"
 )
 
-SPARK_SUBMIT_BASE = f"""
+
+BRONZE_BASH_COMMAND = f"""
+set -euo pipefail
+
 export AWS_PROFILE=nyc-lakehouse
 export AWS_REGION=us-east-1
 export AWS_DEFAULT_REGION=us-east-1
+
 cd {PROJECT_ROOT}
+pwd
+which spark-submit
+ls -l {BRONZE_SCRIPT}
 
 spark-submit \\
   --master 'local[2]' \\
@@ -41,6 +48,30 @@ spark-submit \\
   --conf spark.sql.shuffle.partitions=8 \\
   --conf spark.default.parallelism=2 \\
   --packages {SPARK_PACKAGES} \\
+  {BRONZE_SCRIPT}
+"""
+
+
+SILVER_BASH_COMMAND = f"""
+set -euo pipefail
+
+export AWS_PROFILE=nyc-lakehouse
+export AWS_REGION=us-east-1
+export AWS_DEFAULT_REGION=us-east-1
+
+cd {PROJECT_ROOT}
+pwd
+which spark-submit
+ls -l {SILVER_SCRIPT}
+
+spark-submit \\
+  --master 'local[1]' \\
+  --driver-memory 2g \\
+  --conf spark.executor.memory=2g \\
+  --conf spark.sql.shuffle.partitions=4 \\
+  --conf spark.default.parallelism=1 \\
+  --packages {SPARK_PACKAGES} \\
+  {SILVER_SCRIPT}
 """
 
 DEFAULT_ENV = {
@@ -49,8 +80,20 @@ DEFAULT_ENV = {
     "AWS_DEFAULT_REGION": "us-east-1",
     "DBT_PROFILES_DIR": DBT_PROFILES_DIR,
     "PROJECT_ROOT": PROJECT_ROOT,
-    "PYTHONPATH": PROJECT_ROOT,
 }
+
+
+def make_dbt_bash_command(dbt_command: str) -> str:
+    return f"""
+set -euo pipefail
+
+export AWS_PROFILE=nyc-lakehouse
+export AWS_REGION=us-east-1
+export AWS_DEFAULT_REGION=us-east-1
+
+cd {DBT_PROJECT_DIR}
+dbt {dbt_command} --profiles-dir {DBT_PROFILES_DIR}
+"""
 
 
 def check_raw_data_exists():
@@ -66,14 +109,18 @@ def check_raw_data_exists():
             f"No raw files found under s3://{S3_BUCKET}/{RAW_PREFIX}"
         )
 
-    parquet_keys = [obj["Key"] for obj in resp["Contents"] if obj["Key"].endswith(".parquet")]
+    parquet_keys = [
+        obj["Key"] for obj in resp["Contents"] if obj["Key"].endswith(".parquet")
+    ]
 
     if len(parquet_keys) == 0:
         raise AirflowException(
             f"Objects exist under s3://{S3_BUCKET}/{RAW_PREFIX}, but no parquet files were found."
         )
 
-    print(f"Found {len(parquet_keys)} parquet file(s) under s3://{S3_BUCKET}/{RAW_PREFIX}")
+    print(
+        f"Found {len(parquet_keys)} parquet file(s) under s3://{S3_BUCKET}/{RAW_PREFIX}"
+    )
     for key in parquet_keys[:10]:
         print(f" - {key}")
 
@@ -83,7 +130,7 @@ with DAG(
     description="NYC Taxi lakehouse pipeline: raw check -> bronze -> silver -> dbt run -> dbt test",
     start_date=pendulum.datetime(2026, 4, 1, tz="UTC"),
     schedule=None,
-    catchup=False, # 不會自動回補以前的排程
+    catchup=False,  # 不會自動回補以前的排程
     max_active_runs=1,
     default_args={
         "owner": "data-eng",
@@ -101,65 +148,36 @@ with DAG(
         task_id="bronze_ingest",
         env=DEFAULT_ENV,
         append_env=True,
-        bash_command=f"""
-set -euo pipefail
-{SPARK_SUBMIT_BASE} {BRONZE_SCRIPT}
-""",
+        bash_command=BRONZE_BASH_COMMAND,
     )
 
     silver_transform = BashOperator(
         task_id="silver_transform",
         env=DEFAULT_ENV,
         append_env=True,
-        bash_command=f"""
-set -euo pipefail
-{SPARK_SUBMIT_BASE} {SILVER_SCRIPT}
-""",
+        bash_command=SILVER_BASH_COMMAND,
     )
+
     # 做 project parsing / model graph 檢查 (之後可省)
     dbt_parse = BashOperator(
         task_id="dbt_parse",
         env=DEFAULT_ENV,
         append_env=True,
-        bash_command=f"""
-set -euo pipefail
-export AWS_PROFILE=nyc-lakehouse
-export AWS_REGION=us-east-1
-export AWS_DEFAULT_REGION=us-east-1
-
-cd {DBT_PROJECT_DIR}
-dbt parse --profiles-dir {DBT_PROFILES_DIR}
-""",
+        bash_command=make_dbt_bash_command("parse"),
     )
 
     dbt_run = BashOperator(
         task_id="dbt_run",
         env=DEFAULT_ENV,
         append_env=True,
-        bash_command=f"""
-set -euo pipefail
-export AWS_PROFILE=nyc-lakehouse
-export AWS_REGION=us-east-1
-export AWS_DEFAULT_REGION=us-east-1
-
-cd {DBT_PROJECT_DIR}
-dbt run --profiles-dir {DBT_PROFILES_DIR}
-""",
+        bash_command=make_dbt_bash_command("run"),
     )
 
     dbt_test = BashOperator(
         task_id="dbt_test",
         env=DEFAULT_ENV,
         append_env=True,
-        bash_command=f"""
-set -euo pipefail
-export AWS_PROFILE=nyc-lakehouse
-export AWS_REGION=us-east-1
-export AWS_DEFAULT_REGION=us-east-1
-
-cd {DBT_PROJECT_DIR}
-dbt test --profiles-dir {DBT_PROFILES_DIR}
-""",
+        bash_command=make_dbt_bash_command("test"),
     )
 
     check_raw >> bronze_ingest >> silver_transform >> dbt_parse >> dbt_run >> dbt_test

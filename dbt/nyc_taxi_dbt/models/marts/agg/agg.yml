@@ -1,7 +1,7 @@
 version: 2
 
 models:
-  - name: gold_mart_daily_kpis
+  - name: mart_daily_kpis
     description: "Daily KPI mart for taxi business performance."
     columns:
       - name: pickup_date
@@ -9,7 +9,7 @@ models:
           - not_null
           - unique
 
-  - name: gold_mart_zone_performance
+  - name: mart_zone_performance
     description: "Zone-level performance mart based on pickup zone."
     columns:
       - name: pickup_borough
@@ -20,7 +20,7 @@ models:
         tests:
           - not_null
 
-  - name: gold_mart_hourly_demand
+  - name: mart_hourly_demand
     description: "Hourly demand mart by date, hour, and pickup borough."
     columns:
       - name: pickup_date
@@ -31,7 +31,7 @@ models:
         tests:
           - not_null
 
-  - name: gold_mart_payment_mix
+  - name: mart_payment_mix
     description: "Payment type mix mart by date."
     columns:
       - name: pickup_date
