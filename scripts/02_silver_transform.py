@@ -1,26 +1,30 @@
+import os
+
 from pyspark.sql import SparkSession, functions as F
 
-BUCKET = "nyc-taxi-mpp-lakehouse"
-WAREHOUSE = f"s3://{BUCKET}/warehouse/nyc_lakehouse/"
+BUCKET = os.environ.get("S3_BUCKET", "nyc-taxi-mpp-lakehouse")
+AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
+AWS_PROFILE = os.environ.get("AWS_PROFILE", "nyc-lakehouse")
+WAREHOUSE_PREFIX = os.environ.get("WAREHOUSE_PREFIX", "warehouse/").strip("/")
+CATALOG = os.environ.get("SPARK_CATALOG_NAME", "demo")
+DB = os.environ.get("GLUE_DATABASE_RAW", "nyc_lakehouse")
+WAREHOUSE = f"s3://{BUCKET}/{WAREHOUSE_PREFIX}/{DB}/"
 
 spark = (
     SparkSession.builder
     .appName("nyc-taxi-silver-transform")
     .config("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions")
-    .config("spark.sql.catalog.demo", "org.apache.iceberg.spark.SparkCatalog")
-    .config("spark.sql.catalog.demo.warehouse", WAREHOUSE)
-    .config("spark.sql.catalog.demo.catalog-impl", "org.apache.iceberg.aws.glue.GlueCatalog")
-    .config("spark.sql.catalog.demo.io-impl", "org.apache.iceberg.aws.s3.S3FileIO")
-    .config("spark.sql.defaultCatalog", "demo")
+    .config(f"spark.sql.catalog.{CATALOG}", "org.apache.iceberg.spark.SparkCatalog")
+    .config(f"spark.sql.catalog.{CATALOG}.warehouse", WAREHOUSE)
+    .config(f"spark.sql.catalog.{CATALOG}.catalog-impl", "org.apache.iceberg.aws.glue.GlueCatalog")
+    .config(f"spark.sql.catalog.{CATALOG}.io-impl", "org.apache.iceberg.aws.s3.S3FileIO")
+    .config("spark.sql.defaultCatalog", CATALOG)
     .config("spark.sql.parquet.enableVectorizedReader", "false")
-    .config("spark.hadoop.fs.s3a.endpoint.region", "us-east-1")
+    .config("spark.hadoop.fs.s3a.endpoint.region", AWS_REGION)
     .config("spark.hadoop.fs.s3a.aws.credentials.provider", "com.amazonaws.auth.profile.ProfileCredentialsProvider")
-    .config("spark.hadoop.fs.s3a.aws.profile", "nyc-lakehouse")
+    .config("spark.hadoop.fs.s3a.aws.profile", AWS_PROFILE)
     .getOrCreate()
 )
-
-CATALOG = "demo"
-DB = "nyc_lakehouse"
 
 BRONZE_TRIP = f"{CATALOG}.{DB}.bronze_yellow_trip_raw"
 BRONZE_ZONE = f"{CATALOG}.{DB}.taxi_zone_lookup_raw"

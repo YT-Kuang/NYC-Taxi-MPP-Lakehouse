@@ -2,8 +2,8 @@ version: 2
 
 sources:
   - name: silver
-    database: iceberg
-    schema: nyc_lakehouse
+    database: "{{ env_var('TRINO_CATALOG', 'iceberg') }}"
+    schema: "{{ env_var('GLUE_DATABASE_RAW', 'nyc_lakehouse') }}"
     tables:
       - name: silver_trip_enriched
         description: "Silver enriched NYC yellow taxi trip data cleaned by PySpark."

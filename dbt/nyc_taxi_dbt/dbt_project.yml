@@ -19,12 +19,12 @@ models:
   nyc_taxi_dbt:
     staging:
       +materialized: view
-      +schema: staging
+      +schema: "{{ env_var('GLUE_DATABASE_STAGING', 'staging') }}"
 
     marts:
       core:
         +materialized: table
-        +schema: gold
+        +schema: "{{ env_var('GLUE_DATABASE_GOLD', 'gold') }}"
       agg:
         +materialized: table
-        +schema: gold
+        +schema: "{{ env_var('GLUE_DATABASE_GOLD', 'gold') }}"

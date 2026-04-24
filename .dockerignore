@@ -1,0 +1,13 @@
+.git
+.venv
+__pycache__
+*.pyc
+.DS_Store
+**/.DS_Store
+.env
+.aws
+tmp
+data/raw
+dbt/nyc_taxi_dbt/target
+dbt/nyc_taxi_dbt/logs
+infra/airflow/logs

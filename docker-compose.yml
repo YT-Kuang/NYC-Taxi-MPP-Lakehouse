@@ -6,11 +6,11 @@ services:
       - "8080:8080"
     volumes:
       - ./infra/trino/catalog:/etc/trino/catalog
-      - ${HOME}/.aws:/home/trino/.aws:ro
+      - ${AWS_CONFIG_DIR:-${HOME}/.aws}:/home/trino/.aws:ro
     environment:
-      AWS_PROFILE: nyc-lakehouse
-      AWS_REGION: us-east-1
-      AWS_DEFAULT_REGION: us-east-1
+      AWS_PROFILE: ${AWS_PROFILE:-nyc-lakehouse}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
     restart: unless-stopped
 
   airflow-postgres:
@@ -47,20 +47,34 @@ services:
       AIRFLOW__CORE__FERNET_KEY: ""
       AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
       AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: "true"
-      AIRFLOW_UID: "${AIRFLOW_UID:-50000}"
-      AWS_PROFILE: nyc-lakehouse
-      AWS_REGION: us-east-1
-      AWS_DEFAULT_REGION: us-east-1
+      AIRFLOW_UID: ${AIRFLOW_UID:-50000}
+      AWS_PROFILE: ${AWS_PROFILE:-nyc-lakehouse}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
       PROJECT_ROOT: /opt/nyc_taxi_lakehouse
       DBT_PROFILES_DIR: /home/airflow/.dbt
       PYTHONPATH: /opt/nyc_taxi_lakehouse
+      S3_BUCKET: ${S3_BUCKET:-nyc-taxi-mpp-lakehouse}
+      RAW_PREFIX: ${RAW_PREFIX:-raw/nyc_taxi/yellow_tripdata/}
+      REFERENCE_PREFIX: ${REFERENCE_PREFIX:-raw/nyc_taxi/reference/}
+      WAREHOUSE_PREFIX: ${WAREHOUSE_PREFIX:-warehouse/}
+      TRINO_CATALOG: ${TRINO_CATALOG:-iceberg}
+      GLUE_DATABASE_RAW: ${GLUE_DATABASE_RAW:-nyc_lakehouse}
+      GLUE_DATABASE_STAGING: ${GLUE_DATABASE_STAGING:-staging}
+      GLUE_DATABASE_GOLD: ${GLUE_DATABASE_GOLD:-gold}
+      SPARK_CATALOG_NAME: ${SPARK_CATALOG_NAME:-demo}
+      RAW_TRIP_MONTHS: ${RAW_TRIP_MONTHS:-2025-01,2025-02}
+      DBT_TARGET: ${DBT_TARGET:-dev}
+      TRINO_HOST: ${TRINO_HOST:-trino}
+      TRINO_PORT: ${TRINO_PORT:-8080}
+      TRINO_USER: ${TRINO_USER:-airflow}
     volumes:
       - ./infra/airflow/dags:/opt/airflow/dags
       - ./infra/airflow/logs:/opt/airflow/logs
       - ./infra/airflow/plugins:/opt/airflow/plugins
       - ./:/opt/nyc_taxi_lakehouse
-      - ${HOME}/.aws:/home/airflow/.aws:ro
-      - ${HOME}/.dbt:/home/airflow/.dbt:ro
+      - ${AWS_CONFIG_DIR:-${HOME}/.aws}:/home/airflow/.aws:ro
+      - ./dbt/profiles:/home/airflow/.dbt:ro
     user: "${AIRFLOW_UID:-50000}:0"
     entrypoint: /bin/bash
     command:
@@ -68,12 +82,12 @@ services:
       - |
         airflow db migrate && \
         airflow users create \
-          --username admin \
+          --username ${AIRFLOW_ADMIN_USER:-admin} \
           --firstname admin \
           --lastname admin \
           --role Admin \
           --email admin@example.com \
-          --password admin || true
+          --password ${AIRFLOW_ADMIN_PASSWORD:-admin} || true
     restart: "no"
 
   airflow-webserver:
@@ -93,8 +107,8 @@ services:
       - ./infra/airflow/logs:/opt/airflow/logs
       - ./infra/airflow/plugins:/opt/airflow/plugins
       - ./:/opt/nyc_taxi_lakehouse
-      - ${HOME}/.aws:/home/airflow/.aws:ro
-      - ${HOME}/.dbt:/home/airflow/.dbt:ro
+      - ${AWS_CONFIG_DIR:-${HOME}/.aws}:/home/airflow/.aws:ro
+      - ./dbt/profiles:/home/airflow/.dbt:ro
     user: "${AIRFLOW_UID:-50000}:0"
     ports:
       - "8081:8080"
@@ -123,8 +137,8 @@ services:
       - ./infra/airflow/logs:/opt/airflow/logs
       - ./infra/airflow/plugins:/opt/airflow/plugins
       - ./:/opt/nyc_taxi_lakehouse
-      - ${HOME}/.aws:/home/airflow/.aws:ro
-      - ${HOME}/.dbt:/home/airflow/.dbt:ro
+      - ${AWS_CONFIG_DIR:-${HOME}/.aws}:/home/airflow/.aws:ro
+      - ./dbt/profiles:/home/airflow/.dbt:ro
     user: "${AIRFLOW_UID:-50000}:0"
     command: scheduler
     healthcheck:
